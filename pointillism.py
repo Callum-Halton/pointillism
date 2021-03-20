@@ -1,3 +1,4 @@
+# This is a test comment from Duncan
 
 import math, random
 from PIL import Image, ImageDraw
