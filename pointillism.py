@@ -6,11 +6,13 @@ im = Image.open("bros.png").convert("L")
 width, height = im.size
 pixels = im.load()
 
-RADIUS = 3
+RADIUS = 10
 SQR_RADIUS = RADIUS ** 2
-DRAW_RADIUS = 1
-SAMPLE_LIMIT = 300
-cellSize = RADIUS / math.sqrt(2)
+HALF_RADIUS = int(RADIUS / 2)
+
+DRAW_RADIUS = 50
+SAMPLE_LIMIT = 200
+CELL_SIZE = RADIUS / math.sqrt(2)
 
 
 class Point:
@@ -20,12 +22,12 @@ class Point:
     self.diffBetweenAvgLAndRandomNumber = None
 
   def getCellPos(self):
-    return Point(int(self.x // cellSize), int(self.y // cellSize))
+    return Point(int(self.x // CELL_SIZE), int(self.y // CELL_SIZE))
 
 
 points = []
 activePoints = []
-widthInCells, heightInCells = math.ceil(width / cellSize), math.ceil(height / cellSize)
+widthInCells, heightInCells = math.ceil(width / CELL_SIZE), math.ceil(height / CELL_SIZE)
 cells = [[None for x in range(widthInCells)] for y in range(heightInCells)]
 
 def addNewPoint(point):
@@ -42,9 +44,9 @@ def pointIsValid(candidatePoint):
     for y in range(-2,3):
       extentMagForRow = SCANPATTERN[y + 2]
       for x in range(-extentMagForRow, extentMagForRow + 1):
-        examinedRow, examinedCol = cellPos.x + x, cellPos.y + y
-        if 0 <= examinedRow < widthInCells and 0 <= examinedCol < heightInCells:
-          examinedCell = cells[cellPossExamined.y][cellPossExamined.x]
+        examinedCol, examinedRow = cellPos.x + x, cellPos.y + y
+        if 0 <= examinedCol < widthInCells and 0 <= examinedRow < heightInCells:
+          examinedCell = cells[examinedRow][examinedCol]
           if examinedCell is not None and (candidatePoint.x - examinedCell.x) ** 2 + (candidatePoint.y - examinedCell.y) ** 2 < SQR_RADIUS:
             return False
     return True
@@ -73,15 +75,30 @@ while activePoints:
   else:
     activePoints.remove(spawnPoint)
 
+
 art = Image.new('L', (width, height))
 draw = ImageDraw.Draw(art)
-def drawCircle(point):
-  draw.ellipse([(point.x - DRAW_RADIUS, point.y - DRAW_RADIUS), (point.x + DRAW_RADIUS, point.y + DRAW_RADIUS)], fill=255)
+
+
+def getAvgLWithinAHalfRadOf(point):
+  totLuminosity = 0
+  pixelsSampled = 0
+  for x in range(point.x - HALF_RADIUS, point.x + HALF_RADIUS):
+      for y in range(point.y - HALF_RADIUS, point.y + HALF_RADIUS):
+        if 0 <= x < width and 0 <= y < height and (point.x - x) ** 2 + (point.y - y) ** 2 <= SQR_RADIUS / 4:
+          totLuminosity += pixels[x, y]
+          pixelsSampled += 1
+  return int(totLuminosity / pixelsSampled)
+
+
+def drawCircle(point, l):
+  draw.ellipse([(point.x - DRAW_RADIUS, point.y - DRAW_RADIUS), (point.x + DRAW_RADIUS, point.y + DRAW_RADIUS)], fill=l)
 
 
 print(len(points))
 for point in points:
-  drawCircle(point)
+  l = getAvgLWithinAHalfRadOf(point)
+  drawCircle(point, l)
 
 art.save("art.png")
 art.show()
