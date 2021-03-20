@@ -1,8 +1,6 @@
-# This is a test comment from Duncan
-
 import math, random
 from PIL import Image, ImageDraw
-im = Image.open("bros.png").convert("L")
+im = Image.open("cat.jpeg").convert("L")
 width, height = im.size
 pixels = im.load()
 
@@ -10,7 +8,7 @@ RADIUS = 10
 SQR_RADIUS = RADIUS ** 2
 HALF_RADIUS = int(RADIUS / 2)
 
-DRAW_RADIUS = 50
+DRAW_RADIUS = 5
 SAMPLE_LIMIT = 200
 CELL_SIZE = RADIUS / math.sqrt(2)
 
@@ -44,8 +42,8 @@ def pointIsValid(candidatePoint):
     for y in range(-2,3):
       extentMagForRow = SCANPATTERN[y + 2]
       for x in range(-extentMagForRow, extentMagForRow + 1):
-        examinedCol, examinedRow = cellPos.x + x, cellPos.y + y
-        if 0 <= examinedCol < widthInCells and 0 <= examinedRow < heightInCells:
+        examinedRow, examinedCol = cellPos.y + y, cellPos.x + x
+        if 0 <= examinedRow < heightInCells and 0 <= examinedCol < widthInCells:
           examinedCell = cells[examinedRow][examinedCol]
           if examinedCell is not None and (candidatePoint.x - examinedCell.x) ** 2 + (candidatePoint.y - examinedCell.y) ** 2 < SQR_RADIUS:
             return False
@@ -95,7 +93,7 @@ def drawCircle(point, l):
   draw.ellipse([(point.x - DRAW_RADIUS, point.y - DRAW_RADIUS), (point.x + DRAW_RADIUS, point.y + DRAW_RADIUS)], fill=l)
 
 
-print(len(points))
+print("Number of points: ", len(points))
 for point in points:
   l = getAvgLWithinAHalfRadOf(point)
   drawCircle(point, l)
