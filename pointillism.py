@@ -17,7 +17,7 @@ class Point:
   def __init__(self, x, y):
     self.x = x
     self.y = y
-    self.diffBetweenAvgLAndRandomNum = None
+    self.diffBetweenAvgLAndRandomNumberx = None
 
   def getCellPos(self):
     return Point(int(self.x // cellSize), int(self.y // cellSize))
