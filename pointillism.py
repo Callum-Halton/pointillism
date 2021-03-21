@@ -110,10 +110,15 @@ def getAvgLWithinAHalfRadOf(sourceImage, point):
   return int(totLuminosity / pixelsSampled)
 
 
-def drawCircle(draw, point, l):
-  radius = DRAW_RADIUS * l/128
-  draw.ellipse([(point.x - radius, point.y - radius),
-                (point.x + radius, point.y + radius)], fill=255)
+def drawDot(draw, point, l, backgroundBlack):
+  if backgroundBlack:
+    dotRadius = DRAW_RADIUS * l/128
+    dotIntensity = 255
+  else:
+    dotRadius = DRAW_RADIUS * (255-l)/128
+    dotIntensity = 0
+  draw.ellipse([(point.x - dotRadius, point.y - dotRadius),
+                (point.x + dotRadius, point.y + dotRadius)], fill=dotIntensity)
 
 
 def main():
@@ -134,13 +139,17 @@ def main():
     else:
       state.removeActivePoint(spawnPoint)
 
-  art = Image.new('L', (sourceImage.width, sourceImage.height))
+  backgroundBlack = True
+  backgroundIntensity = 0 if backgroundBlack else 255
+
+  art = Image.new('L', (sourceImage.width, sourceImage.height),
+                  color=backgroundIntensity)
   draw = ImageDraw.Draw(art)
 
   print("Number of points: %d" % state.pointsCount())
   for point in state.getPoints():
     l = getAvgLWithinAHalfRadOf(sourceImage, point)
-    drawCircle(draw, point, l)
+    drawDot(draw, point, l, backgroundBlack)
 
   art.save("art.png")
   art.show()
