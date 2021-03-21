@@ -1,15 +1,15 @@
 import math, random
 from PIL import Image, ImageDraw
-im = Image.open("cat.jpeg").convert("L")
+im = Image.open("monroe.jpeg").convert("L")
 width, height = im.size
 pixels = im.load()
 
-RADIUS = 10
+RADIUS = 8
 SQR_RADIUS = RADIUS ** 2
 HALF_RADIUS = int(RADIUS / 2)
 
-DRAW_RADIUS = 5
-SAMPLE_LIMIT = 200
+DRAW_RADIUS = 4
+SAMPLE_LIMIT = 150
 CELL_SIZE = RADIUS / math.sqrt(2)
 
 
@@ -89,14 +89,15 @@ def getAvgLWithinAHalfRadOf(point):
   return int(totLuminosity / pixelsSampled)
 
 
-def drawCircle(point, l):
-  draw.ellipse([(point.x - DRAW_RADIUS, point.y - DRAW_RADIUS), (point.x + DRAW_RADIUS, point.y + DRAW_RADIUS)], fill=l)
+def drawCircle(point):
+  draw.ellipse([(point.x - DRAW_RADIUS, point.y - DRAW_RADIUS), (point.x + DRAW_RADIUS, point.y + DRAW_RADIUS)], fill=255)
 
 
 print("Number of points: ", len(points))
 for point in points:
   l = getAvgLWithinAHalfRadOf(point)
-  drawCircle(point, l)
+  if l > random.randint(0, 225):
+    drawCircle(point)
 
 art.save("art.png")
 art.show()
