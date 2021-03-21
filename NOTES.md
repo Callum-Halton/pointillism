@@ -19,3 +19,22 @@
 
 [1]: https://google.github.io/styleguide/pyguide.html
 [2]: https://stackoverflow.com/a/25901060
+
+## 2021-03-21 - from Callum
+
+  * Enabled render constants to be changed through the shell interface without having to re-PDS.
+  * Added constants to allow a combination of several modes to be selected from RENDER_CONSTANTS
+  * Encapsulated rendering so that it can be called from the shell once a render constant has 
+    been tweaked.
+  * Changed l to be stored by the points as it doesn't need to be re-calculated for re-rendering
+  * Introduced brightness moderation although it sucks so best to leave turned off
+  * Re-factored drawDot for less repeated code.
+
+  NEXT STEPS:
+  ==========
+  * Allow a mode for RGB images where a red point will spawn a green point and a green point a blue 
+    point etc. so that each channel can be represented by 1/3 of the points.
+  * Introduce variable-radius DS as a means of changing brightness with density: may require seperate
+    algorith or alot of ternaries, not sure which approach is best yet.
+  * make pixel-sampling radius modifiable via some constant
+

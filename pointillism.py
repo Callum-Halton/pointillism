@@ -1,23 +1,36 @@
 import math, random, sys
 from PIL import Image, ImageDraw
 
-RADIUS = 8
+# PDS Constants:
+RADIUS = 10
+SAMPLE_LIMIT = 100
+
+# Computed Constants:
 SQR_RADIUS = RADIUS ** 2
 HALF_RADIUS = int(RADIUS / 2)
-
-DRAW_RADIUS = 4
-SAMPLE_LIMIT = 150
 CELL_SIZE = RADIUS / math.sqrt(2)
 
+RENDER_CONSTANTS = {
+  'Max Draw Radius': 5,
+  'Vary Dot Radius': True,
+  'Vary Dot Intensity': True,
+  'White Dots on Black Background': True,
+  #Best to leave this as False as it ruins the contrast
+  'Moderate Brightness': False
+}
 
 class Point:
   def __init__(self, x, y):
     self.x = x
     self.y = y
+    self.l = None
     self.diffBetweenAvgLAndRandomNumber = None
 
   def getCellPos(self):
     return Point(int(self.x // CELL_SIZE), int(self.y // CELL_SIZE))
+
+  def computeL(self, sourceImage):
+    self.l = getAvgLWithinAHalfRadOf(sourceImage, self)
 
 
 class SourceImage:
@@ -30,14 +43,18 @@ class SourceImage:
 
 
 class State:
-  def __init__(self, image):
+  def __init__(self, sourceImage):
     self._points = []
     self._activePoints = []
-    self._cells = [[None for x in range(image.widthInCells)]
-                   for y in range(image.heightInCells)]
+    self._cells = [[None for x in range(sourceImage.widthInCells)]
+                   for y in range(sourceImage.heightInCells)]
     initialPoint = Point(
-        random.randint(DRAW_RADIUS, image.width - DRAW_RADIUS),
-        random.randint(DRAW_RADIUS, image.height - DRAW_RADIUS))
+        random.randint(RENDER_CONSTANTS['Max Draw Radius'], sourceImage.width 
+          - RENDER_CONSTANTS['Max Draw Radius']),
+        random.randint(RENDER_CONSTANTS['Max Draw Radius'], sourceImage.height 
+          - RENDER_CONSTANTS['Max Draw Radius']))
+    initialPoint.computeL(sourceImage)
+
     self.addNewPoint(initialPoint)
 
   def addNewPoint(self, point):
@@ -70,8 +87,8 @@ class State:
 def pointIsValid(state, sourceImage, candidatePoint):
   SCANPATTERN = [1, 2, 2, 2, 1]
   cellPos = candidatePoint.getCellPos()
-  if (DRAW_RADIUS <= candidatePoint.x <= sourceImage.width - DRAW_RADIUS and
-      DRAW_RADIUS <= candidatePoint.y <= sourceImage.height - DRAW_RADIUS):
+  if (RENDER_CONSTANTS['Max Draw Radius'] <= candidatePoint.x <= sourceImage.width - RENDER_CONSTANTS['Max Draw Radius'] and
+      RENDER_CONSTANTS['Max Draw Radius'] <= candidatePoint.y <= sourceImage.height - RENDER_CONSTANTS['Max Draw Radius']):
     for y in range(-2,3):
       extentMagForRow = SCANPATTERN[y + 2]
       for x in range(-extentMagForRow, extentMagForRow + 1):
@@ -110,15 +127,34 @@ def getAvgLWithinAHalfRadOf(sourceImage, point):
   return int(totLuminosity / pixelsSampled)
 
 
-def drawDot(draw, point, l, backgroundBlack):
-  if backgroundBlack:
-    dotRadius = DRAW_RADIUS * l/128
-    dotIntensity = 255
-  else:
-    dotRadius = DRAW_RADIUS * (255-l)/128
-    dotIntensity = 0
+def drawDot(draw, point, l, backgroundIntensity):
+  lExponenent = (1 / ((RENDER_CONSTANTS['Vary Dot Intensity'] * 1)
+    + (RENDER_CONSTANTS['Vary Dot Radius']* 2))
+    if RENDER_CONSTANTS['Moderate Brightness'] else 1)
+
+  dotRadius = (RENDER_CONSTANTS['Max Draw Radius']
+     * ((l / 255)**lExponenent) if RENDER_CONSTANTS['Vary Dot Radius']
+     else RENDER_CONSTANTS['Max Draw Radius'])
+
+  dotIntensity = (int(l**lExponenent)
+    if RENDER_CONSTANTS['Vary Dot Intensity'] else 255 - backgroundIntensity)
+
   draw.ellipse([(point.x - dotRadius, point.y - dotRadius),
                 (point.x + dotRadius, point.y + dotRadius)], fill=dotIntensity)
+
+
+def render(sourceImage, points):
+  backgroundIntensity = 0 if RENDER_CONSTANTS['White Dots on Black Background'] else 255
+
+  art = Image.new('L', (sourceImage.width, sourceImage.height),
+                  color=backgroundIntensity)
+  draw = ImageDraw.Draw(art)
+
+  for point in points:
+    drawDot(draw, point, abs(backgroundIntensity - point.l), backgroundIntensity)
+
+  art.save("art.png")
+  art.show()
 
 
 def main():
@@ -135,25 +171,59 @@ def main():
     spawnPoint = state.getRandomActivePoint()
     newPoint = getPointNear(state, sourceImage, spawnPoint)
     if newPoint:
+      newPoint.computeL(sourceImage)
       state.addNewPoint(newPoint)
     else:
       state.removeActivePoint(spawnPoint)
 
-  backgroundBlack = True
-  backgroundIntensity = 0 if backgroundBlack else 255
-
-  art = Image.new('L', (sourceImage.width, sourceImage.height),
-                  color=backgroundIntensity)
-  draw = ImageDraw.Draw(art)
-
   print("Number of points: %d" % state.pointsCount())
-  for point in state.getPoints():
-    l = getAvgLWithinAHalfRadOf(sourceImage, point)
-    drawDot(draw, point, l, backgroundBlack)
+  render(sourceImage, state.getPoints())
 
-  art.save("art.png")
-  art.show()
+  RENDER_CONSTANT_ORDER = ['Max Draw Radius', 'Vary Dot Radius', 
+    'Vary Dot Intensity', 'White Dots on Black Background',
+     'Moderate Brightness']
 
+  
+  print("\n\nRENDER OPTIONS:\n")
+  for i in range(0, len(RENDER_CONSTANT_ORDER)):
+    print("[%i] Change: %s" % (i, RENDER_CONSTANT_ORDER[i]))
+  print("[R] Rerender!")
+
+  while True:
+    code = input("\nEnter the code in [] to select an option: ")
+    try: 
+      if code.upper() == 'R':
+        render(sourceImage, state.getPoints())
+      else:
+        renderConstantName = RENDER_CONSTANT_ORDER[int(code)]
+        newVal = input("Change " + renderConstantName + " from " + 
+          str(RENDER_CONSTANTS[renderConstantName]) + " to: ")
+        renderConstantType = type(RENDER_CONSTANTS[renderConstantName])
+        if renderConstantType is bool:
+          if newVal.lower() in {'true', 't'}:
+            RENDER_CONSTANTS[renderConstantName] = True
+            print(renderConstantName, "has been set to True")
+          elif newVal.lower() in {'false', 'f'}:
+            RENDER_CONSTANTS[renderConstantName] = False
+            print(renderConstantName, "has been set to False")
+          else:
+            print(renderConstantName, "must be a Boolean!")
+        elif renderConstantType is int:
+          try:
+            intNewVal = int(newVal)
+            RENDER_CONSTANTS[renderConstantName] = intNewVal
+            print(renderConstantName, "has been changed to", newVal + ".")
+          except:
+            print(renderConstantName, "must be an Integer!")
+    except:
+      print("Invalid code entered!")
 
 if __name__ == "__main__":
   main()
+
+
+
+
+
+
+
