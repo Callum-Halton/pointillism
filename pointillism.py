@@ -111,8 +111,9 @@ def getAvgLWithinAHalfRadOf(sourceImage, point):
 
 
 def drawCircle(draw, point, l):
-  draw.ellipse([(point.x - DRAW_RADIUS, point.y - DRAW_RADIUS),
-                (point.x + DRAW_RADIUS, point.y + DRAW_RADIUS)], fill=l)
+  radius = DRAW_RADIUS * l/128
+  draw.ellipse([(point.x - radius, point.y - radius),
+                (point.x + radius, point.y + radius)], fill=255)
 
 
 def main():

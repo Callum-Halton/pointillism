@@ -9,4 +9,6 @@ if [ "$(whoami)" == "duncan" ]; then
   FILENAME=cat.jpeg
 fi
 
+# FILENAME=cat-large.jpeg
+
 python3 pointillism.py ${FILENAME}
