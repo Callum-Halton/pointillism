@@ -1,8 +1,5 @@
 import math, random
 from PIL import Image, ImageDraw
-im = Image.open("cat.jpeg").convert("L")
-width, height = im.size
-pixels = im.load()
 
 RADIUS = 10
 SQR_RADIUS = RADIUS ** 2
@@ -23,20 +20,15 @@ class Point:
     return Point(int(self.x // CELL_SIZE), int(self.y // CELL_SIZE))
 
 
-points = []
-activePoints = []
-widthInCells, heightInCells = math.ceil(width / CELL_SIZE), math.ceil(height / CELL_SIZE)
-cells = [[None for x in range(widthInCells)] for y in range(heightInCells)]
-
-def addNewPoint(point):
+def addNewPoint(points, activePoints, cells, point):
   points.append(point)
   activePoints.append(point)
   cellPos = point.getCellPos()
   cells[cellPos.y][cellPos.x] = point
 
 
-SCANPATTERN = [1, 2, 2, 2, 1]
-def pointIsValid(candidatePoint):
+def pointIsValid(cells, width, widthInCells, height, heightInCells, candidatePoint):
+  SCANPATTERN = [1, 2, 2, 2, 1]
   cellPos = candidatePoint.getCellPos()
   if (DRAW_RADIUS <= candidatePoint.x <= width - DRAW_RADIUS) and (DRAW_RADIUS <= candidatePoint.y <= height - DRAW_RADIUS):
     for y in range(-2,3):
@@ -51,34 +43,17 @@ def pointIsValid(candidatePoint):
   return False
 
 
-initialPoint = Point(random.randint(DRAW_RADIUS, width - DRAW_RADIUS), random.randint(DRAW_RADIUS, height - DRAW_RADIUS))
-addNewPoint(initialPoint)
-
-
-def getPointNear(spawnPoint):
+def getPointNear(cells, width, widthInCells, height, heightInCells, spawnPoint):
   for i in range(SAMPLE_LIMIT):
     angle = random.uniform(0, 2 * math.pi)
     dist = random.uniform(RADIUS, 2 * RADIUS)
     candidatePoint = Point(int(spawnPoint.x + (dist * math.cos(angle))), int(spawnPoint.y + (dist * math.sin(angle))))
-    if pointIsValid(candidatePoint):
+    if pointIsValid(cells, width, widthInCells, height, heightInCells, candidatePoint):
       return candidatePoint
   return False
 
 
-while activePoints:
-  spawnPoint = random.choice(activePoints)
-  newPoint = getPointNear(spawnPoint)
-  if newPoint:
-    addNewPoint(newPoint)
-  else:
-    activePoints.remove(spawnPoint)
-
-
-art = Image.new('L', (width, height))
-draw = ImageDraw.Draw(art)
-
-
-def getAvgLWithinAHalfRadOf(point):
+def getAvgLWithinAHalfRadOf(width, height, pixels, point):
   totLuminosity = 0
   pixelsSampled = 0
   for x in range(point.x - HALF_RADIUS, point.x + HALF_RADIUS):
@@ -89,14 +64,42 @@ def getAvgLWithinAHalfRadOf(point):
   return int(totLuminosity / pixelsSampled)
 
 
-def drawCircle(point, l):
+def drawCircle(draw, point, l):
   draw.ellipse([(point.x - DRAW_RADIUS, point.y - DRAW_RADIUS), (point.x + DRAW_RADIUS, point.y + DRAW_RADIUS)], fill=l)
 
 
-print("Number of points: ", len(points))
-for point in points:
-  l = getAvgLWithinAHalfRadOf(point)
-  drawCircle(point, l)
+def main():
+  im = Image.open("cat.jpeg").convert("L")
+  pixels = im.load()
+  width, height = im.size
+  widthInCells, heightInCells = math.ceil(width / CELL_SIZE), math.ceil(height / CELL_SIZE)
 
-art.save("art.png")
-art.show()
+  points = []
+  activePoints = []
+  cells = [[None for x in range(widthInCells)] for y in range(heightInCells)]
+
+  initialPoint = Point(random.randint(DRAW_RADIUS, width - DRAW_RADIUS), random.randint(DRAW_RADIUS, height - DRAW_RADIUS))
+  addNewPoint(points, activePoints, cells, initialPoint)
+
+  while activePoints:
+    spawnPoint = random.choice(activePoints)
+    newPoint = getPointNear(cells, width, widthInCells, height, heightInCells, spawnPoint)
+    if newPoint:
+      addNewPoint(points, activePoints, cells, newPoint)
+    else:
+      activePoints.remove(spawnPoint)
+
+  art = Image.new('L', (width, height))
+  draw = ImageDraw.Draw(art)
+
+  print("Number of points: ", len(points))
+  for point in points:
+    l = getAvgLWithinAHalfRadOf(width, height, pixels, point)
+    drawCircle(draw, point, l)
+
+  art.save("art.png")
+  art.show()
+
+
+if __name__ == "__main__":
+  main()
