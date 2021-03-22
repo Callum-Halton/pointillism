@@ -17,24 +17,54 @@
     also enhanced `run.sh` to query `whoami` and pass an appropriate filename
     to `pointillism.py` based on who is running the script.
 
-[1]: https://google.github.io/styleguide/pyguide.html
-[2]: https://stackoverflow.com/a/25901060
-
 ## 2021-03-21 - from Callum
 
-  * Enabled render constants to be changed through the shell interface without having to re-PDS.
-  * Added constants to allow a combination of several modes to be selected from RENDER_CONSTANTS
-  * Encapsulated rendering so that it can be called from the shell once a render constant has 
-    been tweaked.
-  * Changed l to be stored by the points as it doesn't need to be re-calculated for re-rendering
-  * Introduced brightness moderation although it sucks so best to leave turned off
+  * Enabled render constants to be changed through the shell interface without
+    having to re-PDS.
+  * Added constants to allow a combination of several modes to be selected from
+    RENDER_CONSTANTS
+  * Encapsulated rendering so that it can be called from the shell once a render
+    constant has been tweaked.
+  * Changed l to be stored by the points as it doesn't need to be re-calculated
+    for re-rendering
+  * Introduced brightness moderation although it sucks so best to leave turned
+    off
   * Re-factored drawDot for less repeated code.
 
   NEXT STEPS:
   ==========
-  * Allow a mode for RGB images where a red point will spawn a green point and a green point a blue 
+  * Allow a mode for RGB images where a red point will spawn a green point and a
+    green point a blue
     point etc. so that each channel can be represented by 1/3 of the points.
-  * Introduce variable-radius DS as a means of changing brightness with density: may require seperate
-    algorith or alot of ternaries, not sure which approach is best yet.
+  * Introduce variable-radius DS as a means of changing brightness with density:
+    may require seperate algorithm or a lot of ternaries. Not sure which
+    approach is best yet.
   * make pixel-sampling radius modifiable via some constant
 
+## 2021-03-21 - from Duncan
+
+  * Formatted your notes above so that the lines are not longer than 80 chars.
+  * Add Q = quit option to the interactive system.
+  * Limited and enacapsulated the use of integer conversion exception checking
+    to very precisely check if the input string can be converted to int and then
+    use the function in normal code (in two places) in the main loop.
+  * Move the menu rendering into a function and call it every time before user
+    inputs option.
+  * Removed `RENDER_CONSTANT_ORDER`. This was making the code brittle. Can use
+    the keys in the order they are stored, as shown.
+  * Added info about current values to the menu.
+  * Fixed line wrapping in a number of cases to 80 chars. Please try take care
+    of this yourself in the future.
+  * Fixed bug in the vary-dot-radius code. It was setting the dot radius to
+    `RENDER_CONSTANTS['Max Draw Radius']` squared when varying was disabled.
+    This is one of the issues with using ternary statements. They can get really
+    hard to read and understand and therefore can instroduce bugs. I
+    recommend using ternary statements very minimally and only for very simple
+    and short expressions. Motto of software engineering: don't be smart.
+  * I removed various instances of trailing whitespace, that can make `git diff`
+    confusing. To keep the files clear of trailing whitespace, install the
+    Sublime Text package called [Highlight Trailing Whitespace][3].
+
+[1]: https://google.github.io/styleguide/pyguide.html
+[2]: https://stackoverflow.com/a/25901060
+[3]: https://packagecontrol.io/packages/Highlight%20Trailing%20Whitespace

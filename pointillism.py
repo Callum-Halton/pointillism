@@ -15,9 +15,10 @@ RENDER_CONSTANTS = {
   'Vary Dot Radius': True,
   'Vary Dot Intensity': True,
   'White Dots on Black Background': True,
-  #Best to leave this as False as it ruins the contrast
+  # Best to leave this as False as it ruins the contrast
   'Moderate Brightness': False
 }
+
 
 class Point:
   def __init__(self, x, y):
@@ -49,9 +50,9 @@ class State:
     self._cells = [[None for x in range(sourceImage.widthInCells)]
                    for y in range(sourceImage.heightInCells)]
     initialPoint = Point(
-        random.randint(RENDER_CONSTANTS['Max Draw Radius'], sourceImage.width 
+        random.randint(RENDER_CONSTANTS['Max Draw Radius'], sourceImage.width
           - RENDER_CONSTANTS['Max Draw Radius']),
-        random.randint(RENDER_CONSTANTS['Max Draw Radius'], sourceImage.height 
+        random.randint(RENDER_CONSTANTS['Max Draw Radius'], sourceImage.height
           - RENDER_CONSTANTS['Max Draw Radius']))
     initialPoint.computeL(sourceImage)
 
@@ -87,8 +88,10 @@ class State:
 def pointIsValid(state, sourceImage, candidatePoint):
   SCANPATTERN = [1, 2, 2, 2, 1]
   cellPos = candidatePoint.getCellPos()
-  if (RENDER_CONSTANTS['Max Draw Radius'] <= candidatePoint.x <= sourceImage.width - RENDER_CONSTANTS['Max Draw Radius'] and
-      RENDER_CONSTANTS['Max Draw Radius'] <= candidatePoint.y <= sourceImage.height - RENDER_CONSTANTS['Max Draw Radius']):
+  if (RENDER_CONSTANTS['Max Draw Radius'] <= candidatePoint.x <=
+      sourceImage.width - RENDER_CONSTANTS['Max Draw Radius'] and
+      RENDER_CONSTANTS['Max Draw Radius'] <= candidatePoint.y <=
+      sourceImage.height - RENDER_CONSTANTS['Max Draw Radius']):
     for y in range(-2,3):
       extentMagForRow = SCANPATTERN[y + 2]
       for x in range(-extentMagForRow, extentMagForRow + 1):
@@ -96,7 +99,7 @@ def pointIsValid(state, sourceImage, candidatePoint):
         if (0 <= examinedRow < sourceImage.heightInCells and
             0 <= examinedCol < sourceImage.widthInCells):
           examinedCell = state.getCell(examinedRow, examinedCol)
-          if (examinedCell is not None and 
+          if (examinedCell is not None and
               (candidatePoint.x - examinedCell.x) ** 2 +
               (candidatePoint.y - examinedCell.y) ** 2 < SQR_RADIUS):
             return False
@@ -134,7 +137,7 @@ def drawDot(draw, point, l, backgroundIntensity):
 
   dotRadius = (RENDER_CONSTANTS['Max Draw Radius']
      * ((l / 255)**lExponenent) if RENDER_CONSTANTS['Vary Dot Radius']
-     else RENDER_CONSTANTS['Max Draw Radius'])
+     else 1.0)
 
   dotIntensity = (int(l**lExponenent)
     if RENDER_CONSTANTS['Vary Dot Intensity'] else 255 - backgroundIntensity)
@@ -144,17 +147,37 @@ def drawDot(draw, point, l, backgroundIntensity):
 
 
 def render(sourceImage, points):
-  backgroundIntensity = 0 if RENDER_CONSTANTS['White Dots on Black Background'] else 255
+  backgroundIntensity = (0 if RENDER_CONSTANTS['White Dots on Black Background']
+                         else 255)
 
   art = Image.new('L', (sourceImage.width, sourceImage.height),
                   color=backgroundIntensity)
   draw = ImageDraw.Draw(art)
 
   for point in points:
-    drawDot(draw, point, abs(backgroundIntensity - point.l), backgroundIntensity)
+    drawDot(draw, point, abs(backgroundIntensity - point.l),
+            backgroundIntensity)
 
   art.save("art.png")
   art.show()
+
+
+def isInt(val):
+  try:
+    num = int(val)
+  except ValueError:
+    return False
+  return True
+
+
+def renderMenu():
+  print("\n\nRENDER OPTIONS:\n")
+  index = 0
+  for key, value in RENDER_CONSTANTS.items():
+    print("[%i] Change: %s (currently %r)" % (index, key, value))
+    index += 1
+  print("[R] Rerender!")
+  print("[Q] Quit")
 
 
 def main():
@@ -179,43 +202,35 @@ def main():
   print("Number of points: %d" % state.pointsCount())
   render(sourceImage, state.getPoints())
 
-  RENDER_CONSTANT_ORDER = ['Max Draw Radius', 'Vary Dot Radius', 
-    'Vary Dot Intensity', 'White Dots on Black Background',
-     'Moderate Brightness']
-
-  
-  print("\n\nRENDER OPTIONS:\n")
-  for i in range(0, len(RENDER_CONSTANT_ORDER)):
-    print("[%i] Change: %s" % (i, RENDER_CONSTANT_ORDER[i]))
-  print("[R] Rerender!")
-
   while True:
+    renderMenu()
     code = input("\nEnter the code in [] to select an option: ")
-    try: 
-      if code.upper() == 'R':
-        render(sourceImage, state.getPoints())
-      else:
-        renderConstantName = RENDER_CONSTANT_ORDER[int(code)]
-        newVal = input("Change " + renderConstantName + " from " + 
-          str(RENDER_CONSTANTS[renderConstantName]) + " to: ")
-        renderConstantType = type(RENDER_CONSTANTS[renderConstantName])
-        if renderConstantType is bool:
-          if newVal.lower() in {'true', 't'}:
-            RENDER_CONSTANTS[renderConstantName] = True
-            print(renderConstantName, "has been set to True")
-          elif newVal.lower() in {'false', 'f'}:
-            RENDER_CONSTANTS[renderConstantName] = False
-            print(renderConstantName, "has been set to False")
-          else:
-            print(renderConstantName, "must be a Boolean!")
-        elif renderConstantType is int:
-          try:
-            intNewVal = int(newVal)
-            RENDER_CONSTANTS[renderConstantName] = intNewVal
-            print(renderConstantName, "has been changed to", newVal + ".")
-          except:
-            print(renderConstantName, "must be an Integer!")
-    except:
+    if code.upper() == 'R':
+      render(sourceImage, state.getPoints())
+    elif code.upper() == 'Q':
+      break
+    elif isInt(code) and int(code) < len(RENDER_CONSTANTS.keys()):
+      renderConstantName = list(RENDER_CONSTANTS.keys())[int(code)]
+      newVal = input("Change " + renderConstantName + " from " +
+        str(RENDER_CONSTANTS[renderConstantName]) + " to: ")
+      renderConstantType = type(RENDER_CONSTANTS[renderConstantName])
+      if renderConstantType is bool:
+        if newVal.lower() in {'true', 't'}:
+          RENDER_CONSTANTS[renderConstantName] = True
+          print(renderConstantName, "has been set to True")
+        elif newVal.lower() in {'false', 'f'}:
+          RENDER_CONSTANTS[renderConstantName] = False
+          print(renderConstantName, "has been set to False")
+        else:
+          print(renderConstantName, "must be a Boolean!")
+      elif renderConstantType is int:
+        if isInt(newVal):
+          intNewVal = int(newVal)
+          RENDER_CONSTANTS[renderConstantName] = intNewVal
+          print(renderConstantName, "has been changed to", newVal + ".")
+        else:
+          print(renderConstantName, "must be an Integer!")
+    else:
       print("Invalid code entered!")
 
 if __name__ == "__main__":
