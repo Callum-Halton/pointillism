@@ -2,36 +2,62 @@ import math, random, sys
 from PIL import Image, ImageDraw
 
 # PDS Constants:
-RADIUS = 10
-SAMPLE_LIMIT = 100
+# MAX_RADIUS is the fixed exclusion radius when VARY_DOT_DENSITY = False
+MAX_RADIUS = 40
+SAMPLE_LIMIT = 10
+VARY_DOT_DENSITY = True
+MIN_RADIUS = 20
 
 # Computed Constants:
-SQR_RADIUS = RADIUS ** 2
-HALF_RADIUS = int(RADIUS / 2)
-CELL_SIZE = RADIUS / math.sqrt(2)
+SQR_RADIUS = MAX_RADIUS ** 2
+SAMPLE_RADIUS = (int((MIN_RADIUS + MAX_RADIUS) / 2) if VARY_DOT_DENSITY
+  else int(MAX_RADIUS / 2))
+
+SQR_SAMPLE_RADIUS = SAMPLE_RADIUS ** 2
+CELL_SIZE = MAX_RADIUS / math.sqrt(2)
+if VARY_DOT_DENSITY:
+  RADIUS_DIFF = MAX_RADIUS - MIN_RADIUS
 
 RENDER_CONSTANTS = {
-  'Max Draw Radius': 5,
-  'Vary Dot Radius': True,
-  'Vary Dot Intensity': True,
+  'Max Draw Radius': 10,
+  'Vary Dot Radius': False,
+  'Vary Dot Intensity': False,
   'White Dots on Black Background': True,
   # Best to leave this as False as it ruins the contrast
   'Moderate Brightness': False
 }
 
-
 class Point:
   def __init__(self, x, y):
     self.x = x
     self.y = y
+    self.r = MAX_RADIUS
     self.l = None
-    self.diffBetweenAvgLAndRandomNumber = None
 
   def getCellPos(self):
     return Point(int(self.x // CELL_SIZE), int(self.y // CELL_SIZE))
 
   def computeL(self, sourceImage):
-    self.l = getAvgLWithinAHalfRadOf(sourceImage, self)
+    totLuminosity = 0
+    pixelsSampled = 1
+    #print(self.x, self.y)
+    sx = None
+    sy = None
+    for x in range(self.x - SAMPLE_RADIUS, self.x + SAMPLE_RADIUS):
+        for y in range(self.y - SAMPLE_RADIUS, self.y + SAMPLE_RADIUS):
+          sx, sy = x, y
+          if (0 <= x < sourceImage.width and 0 <= y < sourceImage.height and
+             (self.x - x) ** 2 + (self.y - y) ** 2 <= SQR_SAMPLE_RADIUS):
+            totLuminosity += sourceImage.pixels[x, y]
+            pixelsSampled += 1
+
+    try:
+      self.l = int(totLuminosity / pixelsSampled)
+    except:
+      print(self.x, self.y)
+      print(sx, sy)
+    if VARY_DOT_DENSITY:
+      self.r = (255 - self.l) / 255 * RADIUS_DIFF + MIN_RADIUS
 
 
 class SourceImage:
@@ -47,7 +73,8 @@ class State:
   def __init__(self, sourceImage):
     self._points = []
     self._activePoints = []
-    self._cells = [[None for x in range(sourceImage.widthInCells)]
+    self._activePointsCount = 0
+    self._cells = [[[] for x in range(sourceImage.widthInCells)]
                    for y in range(sourceImage.heightInCells)]
     initialPoint = Point(
         random.randint(RENDER_CONSTANTS['Max Draw Radius'], sourceImage.width
@@ -61,18 +88,19 @@ class State:
   def addNewPoint(self, point):
     self._points.append(point)
     self._activePoints.append(point)
+    self._activePointsCount += 1
     cellPos = point.getCellPos()
-    self._cells[cellPos.y][cellPos.x] = point
+    self._cells[cellPos.y][cellPos.x].append(point)
 
   def removeActivePoint(self, point):
     self._activePoints.remove(point)
+    self._activePointsCount -= 1
 
   def getCell(self, row, col):
     return self._cells[row][col]
 
   def hasActivePoints(self):
-    # Accelerate program by using a counter for this?
-    return len(self._activePoints) > 0
+    return self._activePointsCount > 0
 
   def getRandomActivePoint(self):
     point = random.choice(self._activePoints)
@@ -88,6 +116,8 @@ class State:
 def pointIsValid(state, sourceImage, candidatePoint):
   SCANPATTERN = [1, 2, 2, 2, 1]
   cellPos = candidatePoint.getCellPos()
+  if VARY_DOT_DENSITY:
+    candidatePoint.computeL(sourceImage)
   if (RENDER_CONSTANTS['Max Draw Radius'] <= candidatePoint.x <=
       sourceImage.width - RENDER_CONSTANTS['Max Draw Radius'] and
       RENDER_CONSTANTS['Max Draw Radius'] <= candidatePoint.y <=
@@ -99,10 +129,14 @@ def pointIsValid(state, sourceImage, candidatePoint):
         if (0 <= examinedRow < sourceImage.heightInCells and
             0 <= examinedCol < sourceImage.widthInCells):
           examinedCell = state.getCell(examinedRow, examinedCol)
-          if (examinedCell is not None and
-              (candidatePoint.x - examinedCell.x) ** 2 +
-              (candidatePoint.y - examinedCell.y) ** 2 < SQR_RADIUS):
-            return False
+          for point in examinedCell:
+            sqr_distance = ((candidatePoint.x - point.x) ** 2 +
+            (candidatePoint.y - point.y) ** 2)
+            if VARY_DOT_DENSITY:
+             if sqr_distance < min(candidatePoint.r, point.r) ** 2:
+              return False
+            elif sqr_distance < SQR_RADIUS:
+               return False
     return True
   return False
 
@@ -110,34 +144,18 @@ def pointIsValid(state, sourceImage, candidatePoint):
 def getPointNear(state, sourceImage, spawnPoint):
   for i in range(SAMPLE_LIMIT):
     angle = random.uniform(0, 2 * math.pi)
-    dist = random.uniform(RADIUS, 2 * RADIUS)
+    dist = random.uniform(spawnPoint.r, 2 * spawnPoint.r)
     candidatePoint = Point(int(spawnPoint.x + (dist * math.cos(angle))),
                            int(spawnPoint.y + (dist * math.sin(angle))))
     if pointIsValid(state, sourceImage, candidatePoint):
       return candidatePoint
   return False
 
-
-def getAvgLWithinAHalfRadOf(sourceImage, point):
-  totLuminosity = 0
-  pixelsSampled = 0
-  for x in range(point.x - HALF_RADIUS, point.x + HALF_RADIUS):
-      for y in range(point.y - HALF_RADIUS, point.y + HALF_RADIUS):
-        if (0 <= x < sourceImage.width and 0 <= y < sourceImage.height and
-           (point.x - x) ** 2 + (point.y - y) ** 2 <= SQR_RADIUS / 4):
-          totLuminosity += sourceImage.pixels[x, y]
-          pixelsSampled += 1
-  return int(totLuminosity / pixelsSampled)
-
-
-def drawDot(draw, point, l, backgroundIntensity):
-  lExponenent = (1 / ((RENDER_CONSTANTS['Vary Dot Intensity'] * 1)
-    + (RENDER_CONSTANTS['Vary Dot Radius']* 2))
-    if RENDER_CONSTANTS['Moderate Brightness'] else 1)
+def drawDot(draw, point, l, backgroundIntensity, lExponenent):
 
   dotRadius = (RENDER_CONSTANTS['Max Draw Radius']
-     * ((l / 255)**lExponenent) if RENDER_CONSTANTS['Vary Dot Radius']
-     else 1.0)
+     * ((abs(l - backgroundIntensity) / 255)**lExponenent) if RENDER_CONSTANTS['Vary Dot Radius']
+     else RENDER_CONSTANTS['Max Draw Radius'])
 
   dotIntensity = (int(l**lExponenent)
     if RENDER_CONSTANTS['Vary Dot Intensity'] else 255 - backgroundIntensity)
@@ -154,9 +172,12 @@ def render(sourceImage, points):
                   color=backgroundIntensity)
   draw = ImageDraw.Draw(art)
 
+  lExponenent = (1 / ((RENDER_CONSTANTS['Vary Dot Intensity'] * 1)
+      + (RENDER_CONSTANTS['Vary Dot Radius']* 2))
+      if RENDER_CONSTANTS['Moderate Brightness'] else 1)
+
   for point in points:
-    drawDot(draw, point, abs(backgroundIntensity - point.l),
-            backgroundIntensity)
+    drawDot(draw, point, point.l, backgroundIntensity, lExponenent)
 
   art.save("art.png")
   art.show()
@@ -181,7 +202,7 @@ def renderMenu():
 
 
 def main():
-  sourceFilename = "bros.png"
+  sourceFilename = "portrait.jpg"
   if len(sys.argv) > 1:
     sourceFilename = sys.argv[1]
 
@@ -190,14 +211,17 @@ def main():
   sourceImage = SourceImage(sourceFilename)
   state = State(sourceImage)
 
+  n = 0
   while state.hasActivePoints():
     spawnPoint = state.getRandomActivePoint()
     newPoint = getPointNear(state, sourceImage, spawnPoint)
     if newPoint:
-      newPoint.computeL(sourceImage)
+      if !VARY_DOT_DENSITY:
+        newPoint.computeL(sourceImage)
       state.addNewPoint(newPoint)
     else:
       state.removeActivePoint(spawnPoint)
+    n += 1
 
   print("Number of points: %d" % state.pointsCount())
   render(sourceImage, state.getPoints())
