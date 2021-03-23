@@ -65,6 +65,27 @@
     confusing. To keep the files clear of trailing whitespace, install the
     Sublime Text package called [Highlight Trailing Whitespace][3].
 
+## 2021-03-22 - from Duncan
+
+  * You committed two large JPEG files to the repo; not good. `git status`
+    would have shown you that you were about to commit these, and after
+    `git add` they would have shown up as green on `git status`, ready to be
+    committed. After grabbing copies of them (so I can use them as source
+    images), I removed them from the repo using `git rm ...`. I can provide
+    copies of them if the git pull removed them for you. It's important to
+    review and revise what you commit, using `git status` and `git diff`.
+  * Added `*.jpg` into the .gitignore file so that git ignores all `.jpg` files.
+    Note that `.gitignore` already included `*.jpeg`.
+  * Added a folder called `input` to put input images into. Note that it's
+    good to name folders that will be manipulated on the command line without
+    spaces in them. So `input-images` is better than `input images`.
+  * Added `.gitkeep` files to both the `input` and `output` folders. Git does
+    not explicitly track and commit folders. It tracks folders only so far as
+    they are needed to track files. By putting the empty `.gitkeep` files in
+    these folders, it forces git to track these folders. So when you pull, you
+    will see these two folders appear. You should move your input images into
+    the `input` folder.
+
 [1]: https://google.github.io/styleguide/pyguide.html
 [2]: https://stackoverflow.com/a/25901060
 [3]: https://packagecontrol.io/packages/Highlight%20Trailing%20Whitespace

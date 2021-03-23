@@ -4,9 +4,9 @@ set -ex
 
 # This file make it easy to run the program quickly from the command line
 
-FILENAME=bros.png
+FILENAME=input/portrait.jpg
 if [ "$(whoami)" == "duncan" ]; then
-  FILENAME=cat.jpeg
+  FILENAME=input/callum-1.jpg
 fi
 
 # FILENAME=cat-large.jpeg

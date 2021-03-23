@@ -179,7 +179,7 @@ def render(sourceImage, points):
   for point in points:
     drawDot(draw, point, point.l, backgroundIntensity, lExponenent)
 
-  art.save("art.png")
+  art.save("output/art.png")
   art.show()
 
 
@@ -202,7 +202,7 @@ def renderMenu():
 
 
 def main():
-  sourceFilename = "portrait.jpg"
+  sourceFilename = "input/portrait.jpg"
   if len(sys.argv) > 1:
     sourceFilename = sys.argv[1]
 
@@ -216,7 +216,7 @@ def main():
     spawnPoint = state.getRandomActivePoint()
     newPoint = getPointNear(state, sourceImage, spawnPoint)
     if newPoint:
-      if !VARY_DOT_DENSITY:
+      if not VARY_DOT_DENSITY:
         newPoint.computeL(sourceImage)
       state.addNewPoint(newPoint)
     else:
