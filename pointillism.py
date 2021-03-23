@@ -303,7 +303,7 @@ def main():
     spawnPoint = state.getRandomActivePoint()
     newPoint = getPointNear(state, sourceImage, spawnPoint, options)
     if newPoint:
-      if options.getVaryDotDensity():
+      if not options.getVaryDotDensity():
         newPoint.computeL(sourceImage)
       state.addNewPoint(newPoint)
     else:
