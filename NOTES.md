@@ -93,10 +93,13 @@
     together and out of `main`, and gets rid of having a ton of global
     variables, which tends to make code really hard to maintain and debug. Check
     out how simple the `main` function now is.
-  * Unfortunately, the last item was a massive refactor, and I seem to have
-    broken the program. It currently doesn't render properly. If I had had a
-    set of tests, then I would have implemented that changes step-by-step
-    running the tests after each step.
+  * The indents in `pointIsValid` were really weird. I fixed them the best I
+    could. I think you should carefully review that function.
+  * In main, you had `if !VARY_DOT_DENSITY:`, which is not even
+    valid Python 3 (did you mean `not`?). I don't know how you were able to even
+    run that code. Also, I didn't know what the logic should have been there. I
+    presume that we **would** want to `computeL` on a new point if
+    `varyDotDensity` is true (so no `not`).
 
 [1]: https://google.github.io/styleguide/pyguide.html
 [2]: https://stackoverflow.com/a/25901060

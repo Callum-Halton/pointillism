@@ -152,7 +152,7 @@ class Point:
     except:
       print(self.x, self.y)
       print(sx, sy)
-    if self._options.getVaryDotIntensity():
+    if self._options.getVaryDotDensity():
       self.r = ((255 - self.l) / 255 * self._options.getRadiusDiff() +
                 self._options.getMinRadius())
 
@@ -229,13 +229,13 @@ def pointIsValid(state, sourceImage, candidatePoint, options):
             0 <= examinedCol < sourceImage.widthInCells):
           examinedCell = state.getCell(examinedRow, examinedCol)
           for point in examinedCell:
-            sqr_distance = ((candidatePoint.x - point.x) ** 2 +
-            (candidatePoint.y - point.y) ** 2)
+            sqrDistance = ((candidatePoint.x - point.x) ** 2 +
+                           (candidatePoint.y - point.y) ** 2)
             if options.getVaryDotDensity():
-             if sqr_distance < min(candidatePoint.r, point.r) ** 2:
+              if sqrDistance < min(candidatePoint.r, point.r) ** 2:
+                return False
+            elif sqrDistance < options.getSqrRadius():
               return False
-            elif sqr_distance < options.getSqrRadius():
-               return False
     return True
   return False
 
@@ -303,7 +303,7 @@ def main():
     spawnPoint = state.getRandomActivePoint()
     newPoint = getPointNear(state, sourceImage, spawnPoint, options)
     if newPoint:
-      if not options.getVaryDotDensity():
+      if options.getVaryDotDensity():
         newPoint.computeL(sourceImage)
       state.addNewPoint(newPoint)
     else:
