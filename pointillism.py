@@ -1,41 +1,135 @@
 import math, random, sys
 from PIL import Image, ImageDraw
 
-# PDS Constants:
-# MAX_RADIUS is the fixed exclusion radius when VARY_DOT_DENSITY = False
-MAX_RADIUS = 40
-SAMPLE_LIMIT = 10
-VARY_DOT_DENSITY = True
-MIN_RADIUS = 20
+class Options:
+  def __init__(self):
+    # Constants
+    self._maxRadius = 40 # maximum Poisson disc radius
+    # maxRadius is the fixed exlusion radius when varyDotIntensity is False
+    self._sampleLimit = 10 # number of times we'll try to find a new point
+    self._varyDotDensity = True
+    self._minRadius = 20 # minimum Poisson disc radius
 
-# Computed Constants:
-SQR_RADIUS = MAX_RADIUS ** 2
-SAMPLE_RADIUS = (int((MIN_RADIUS + MAX_RADIUS) / 2) if VARY_DOT_DENSITY
-  else int(MAX_RADIUS / 2))
+    # Computed Constants
+    self._sqrRadius = self._maxRadius ** 2
+    if self._varyDotDensity:
+      self._sampleRadius = int((self._minRadius + self._maxRadius) / 2)
+    else:
+      self._sampleRadius = int(self._maxRadius / 2)
+    self._sqrSampleRadius = self._sampleRadius ** 2
+    self._cellSize = self._maxRadius / math.sqrt(2) # Should this be an integer?
+    if self._varyDotDensity:
+      self._radiusDiff = self._maxRadius - self._minRadius
 
-SQR_SAMPLE_RADIUS = SAMPLE_RADIUS ** 2
-CELL_SIZE = MAX_RADIUS / math.sqrt(2)
-if VARY_DOT_DENSITY:
-  RADIUS_DIFF = MAX_RADIUS - MIN_RADIUS
+    # Interface-Controllable Options
+    self._renderConstants = {
+      'Max Draw Radius': 10,
+      'Vary Dot Radius': False,
+      'Vary Dot Intensity': False,
+      'White Dots on Black Background': True,
+      # Best to leave this as False because it ruins the contrast
+      'Moderate Brightness': False
+    }
 
-RENDER_CONSTANTS = {
-  'Max Draw Radius': 10,
-  'Vary Dot Radius': False,
-  'Vary Dot Intensity': False,
-  'White Dots on Black Background': True,
-  # Best to leave this as False as it ruins the contrast
-  'Moderate Brightness': False
-}
+  def getMaxRadius(self):
+    return self._maxRadius
+
+  def getSampleLimit(self):
+    return self._sampleLimit
+
+  def getVaryDotDensity(self):
+    return self._varyDotDensity
+
+  def getMinRadius(self):
+    return self._minRadius
+
+  def getSqrRadius(self):
+    return self._sqrRadius
+
+  def getSampleRadius(self):
+    return self._sampleRadius
+
+  def getSqrSampleRadius(self):
+    return self._sqrSampleRadius
+
+  def getCellSize(self):
+    return self._cellSize
+
+  def getRadiusDiff(self):
+    return self._radiusDiff
+
+  def getMaxDrawRadius(self):
+    return self._renderConstants['Max Draw Radius']
+
+  def getVaryDotRadius(self):
+    return self._renderConstants['Vary Dot Radius']
+
+  def getVaryDotIntensity(self):
+    return self._renderConstants['Vary Dot Intensity']
+
+  def getWhiteDotsOnBlackBackground(self):
+    return self._renderConstants['White Dots on Black Background']
+
+  def getModerateBrightness(self):
+    return self._renderConstants['Moderate Brightness']
+
+  def renderMenu(self):
+    print("\n\nRENDER OPTIONS:\n")
+    index = 0
+    for key, value in self._renderConstants.items():
+      print("[%i] Change: %s (currently %r)" % (index, key, value))
+      index += 1
+    print("[R] Rerender!")
+    print("[Q] Quit")
+
+  def prompt(self):
+    return input("\nEnter the code in [] to select an option: ")
+
+  def _isInt(self, val):
+    try:
+      num = int(val)
+    except ValueError:
+      return False
+    return True
+
+  def parseInput(self, code):
+    if self._isInt(code) and int(code) < len(self._renderConstants.keys()):
+      renderConstantName = list(self._renderConstants.keys())[int(code)]
+      newVal = input("Change " + renderConstantName + " from " +
+        str(self._renderConstants[renderConstantName]) + " to: ")
+      renderConstantType = type(self._renderConstants[renderConstantName])
+      if renderConstantType is bool:
+        if newVal.lower() in {'true', 't'}:
+          self._renderConstants[renderConstantName] = True
+          print(renderConstantName, "has been set to True")
+        elif newVal.lower() in {'false', 'f'}:
+          self._renderConstants[renderConstantName] = False
+          print(renderConstantName, "has been set to False")
+        else:
+          print(renderConstantName, "must be a Boolean!")
+      elif renderConstantType is int:
+        if self._isInt(newVal):
+          intNewVal = int(newVal)
+          self._renderConstants[renderConstantName] = intNewVal
+          print(renderConstantName, "has been changed to", newVal + ".")
+        else:
+          print(renderConstantName, "must be an Integer!")
+    else:
+      print("Invalid code entered!")
+
 
 class Point:
-  def __init__(self, x, y):
+  def __init__(self, x, y, options):
+    self._options = options
     self.x = x
     self.y = y
-    self.r = MAX_RADIUS
+    self.r = self._options.getMaxRadius()
     self.l = None
 
   def getCellPos(self):
-    return Point(int(self.x // CELL_SIZE), int(self.y // CELL_SIZE))
+    cellSize = self._options.getCellSize()
+    return Point(int(self.x // cellSize), int(self.y // cellSize),
+                 self._options)
 
   def computeL(self, sourceImage):
     totLuminosity = 0
@@ -43,11 +137,13 @@ class Point:
     #print(self.x, self.y)
     sx = None
     sy = None
-    for x in range(self.x - SAMPLE_RADIUS, self.x + SAMPLE_RADIUS):
-        for y in range(self.y - SAMPLE_RADIUS, self.y + SAMPLE_RADIUS):
+    sampleRadius = self._options.getSampleRadius()
+    sqrSampleRadius = self._options.getSqrSampleRadius()
+    for x in range(self.x - sampleRadius, self.x + sampleRadius):
+        for y in range(self.y - sampleRadius, self.y + sampleRadius):
           sx, sy = x, y
           if (0 <= x < sourceImage.width and 0 <= y < sourceImage.height and
-             (self.x - x) ** 2 + (self.y - y) ** 2 <= SQR_SAMPLE_RADIUS):
+             (self.x - x) ** 2 + (self.y - y) ** 2 <= sqrSampleRadius):
             totLuminosity += sourceImage.pixels[x, y]
             pixelsSampled += 1
 
@@ -56,32 +152,35 @@ class Point:
     except:
       print(self.x, self.y)
       print(sx, sy)
-    if VARY_DOT_DENSITY:
-      self.r = (255 - self.l) / 255 * RADIUS_DIFF + MIN_RADIUS
+    if self._options.getVaryDotIntensity():
+      self.r = ((255 - self.l) / 255 * self._options.getRadiusDiff() +
+                self._options.getMinRadius())
 
 
 class SourceImage:
-  def __init__(self, filename):
+  def __init__(self, filename, options):
     im = Image.open(filename).convert("L")
     self.pixels = pixels = im.load()
     self.width, self.height = im.size
-    self.widthInCells = math.ceil(self.width / CELL_SIZE)
-    self.heightInCells = math.ceil(self.height / CELL_SIZE)
+    cellSize = options.getCellSize()
+    self.widthInCells = math.ceil(self.width / cellSize)
+    self.heightInCells = math.ceil(self.height / cellSize)
 
 
 class State:
-  def __init__(self, sourceImage):
+  def __init__(self, sourceImage, options):
     self._points = []
     self._activePoints = []
     self._activePointsCount = 0
     self._cells = [[[] for x in range(sourceImage.widthInCells)]
                    for y in range(sourceImage.heightInCells)]
+    maxDrawRadius = options.getMaxDrawRadius()
     initialPoint = Point(
-        random.randint(RENDER_CONSTANTS['Max Draw Radius'], sourceImage.width
-          - RENDER_CONSTANTS['Max Draw Radius']),
-        random.randint(RENDER_CONSTANTS['Max Draw Radius'], sourceImage.height
-          - RENDER_CONSTANTS['Max Draw Radius']))
+        random.randint(maxDrawRadius, sourceImage.width - maxDrawRadius),
+        random.randint(maxDrawRadius, sourceImage.height - maxDrawRadius),
+        options)
     initialPoint.computeL(sourceImage)
+    self._options = options
 
     self.addNewPoint(initialPoint)
 
@@ -113,15 +212,15 @@ class State:
     return self._points.copy() # return a copy to protect the hidden state
 
 
-def pointIsValid(state, sourceImage, candidatePoint):
+def pointIsValid(state, sourceImage, candidatePoint, options):
   SCANPATTERN = [1, 2, 2, 2, 1]
   cellPos = candidatePoint.getCellPos()
-  if VARY_DOT_DENSITY:
+  if options.getVaryDotDensity():
     candidatePoint.computeL(sourceImage)
-  if (RENDER_CONSTANTS['Max Draw Radius'] <= candidatePoint.x <=
-      sourceImage.width - RENDER_CONSTANTS['Max Draw Radius'] and
-      RENDER_CONSTANTS['Max Draw Radius'] <= candidatePoint.y <=
-      sourceImage.height - RENDER_CONSTANTS['Max Draw Radius']):
+
+  maxDrawRadius = options.getMaxDrawRadius()
+  if (maxDrawRadius <= candidatePoint.x <= sourceImage.width - maxDrawRadius and
+      maxDrawRadius <= candidatePoint.y <= sourceImage.height - maxDrawRadius):
     for y in range(-2,3):
       extentMagForRow = SCANPATTERN[y + 2]
       for x in range(-extentMagForRow, extentMagForRow + 1):
@@ -132,73 +231,59 @@ def pointIsValid(state, sourceImage, candidatePoint):
           for point in examinedCell:
             sqr_distance = ((candidatePoint.x - point.x) ** 2 +
             (candidatePoint.y - point.y) ** 2)
-            if VARY_DOT_DENSITY:
+            if options.getVaryDotDensity():
              if sqr_distance < min(candidatePoint.r, point.r) ** 2:
               return False
-            elif sqr_distance < SQR_RADIUS:
+            elif sqr_distance < options.getSqrRadius():
                return False
     return True
   return False
 
 
-def getPointNear(state, sourceImage, spawnPoint):
-  for i in range(SAMPLE_LIMIT):
+def getPointNear(state, sourceImage, spawnPoint, options):
+  for i in range(options.getSampleLimit()):
     angle = random.uniform(0, 2 * math.pi)
     dist = random.uniform(spawnPoint.r, 2 * spawnPoint.r)
     candidatePoint = Point(int(spawnPoint.x + (dist * math.cos(angle))),
-                           int(spawnPoint.y + (dist * math.sin(angle))))
-    if pointIsValid(state, sourceImage, candidatePoint):
+                           int(spawnPoint.y + (dist * math.sin(angle))),
+                           options)
+    if pointIsValid(state, sourceImage, candidatePoint, options):
       return candidatePoint
   return False
 
-def drawDot(draw, point, l, backgroundIntensity, lExponenent):
+def drawDot(draw, point, l, backgroundIntensity, lExponenent, options):
+  dotRadius = options.getMaxDrawRadius()
+  if options.getVaryDotRadius():
+    dotRadius *= ((abs(l - backgroundIntensity) / 255)**lExponenent)
 
-  dotRadius = (RENDER_CONSTANTS['Max Draw Radius']
-     * ((abs(l - backgroundIntensity) / 255)**lExponenent) if RENDER_CONSTANTS['Vary Dot Radius']
-     else RENDER_CONSTANTS['Max Draw Radius'])
-
-  dotIntensity = (int(l**lExponenent)
-    if RENDER_CONSTANTS['Vary Dot Intensity'] else 255 - backgroundIntensity)
+  if options.getVaryDotIntensity():
+    dotIntensity = int(l ** lExponenent)
+  else:
+    dotIntensity = 255 - backgroundIntensity
 
   draw.ellipse([(point.x - dotRadius, point.y - dotRadius),
                 (point.x + dotRadius, point.y + dotRadius)], fill=dotIntensity)
 
 
-def render(sourceImage, points):
-  backgroundIntensity = (0 if RENDER_CONSTANTS['White Dots on Black Background']
-                         else 255)
+def render(sourceImage, points, options):
+  backgroundIntensity = 255
+  if options.getWhiteDotsOnBlackBackground():
+    backgroundIntensity = 0
 
   art = Image.new('L', (sourceImage.width, sourceImage.height),
                   color=backgroundIntensity)
   draw = ImageDraw.Draw(art)
 
-  lExponenent = (1 / ((RENDER_CONSTANTS['Vary Dot Intensity'] * 1)
-      + (RENDER_CONSTANTS['Vary Dot Radius']* 2))
-      if RENDER_CONSTANTS['Moderate Brightness'] else 1)
+  lExponenent = 1
+  if options.getModerateBrightness():
+    lExponenent /= (options.getVaryDotIntensity() * 1 +
+                    options.getVaryDotRadius() * 2)
 
   for point in points:
-    drawDot(draw, point, point.l, backgroundIntensity, lExponenent)
+    drawDot(draw, point, point.l, backgroundIntensity, lExponenent, options)
 
   art.save("output/art.png")
   art.show()
-
-
-def isInt(val):
-  try:
-    num = int(val)
-  except ValueError:
-    return False
-  return True
-
-
-def renderMenu():
-  print("\n\nRENDER OPTIONS:\n")
-  index = 0
-  for key, value in RENDER_CONSTANTS.items():
-    print("[%i] Change: %s (currently %r)" % (index, key, value))
-    index += 1
-  print("[R] Rerender!")
-  print("[Q] Quit")
 
 
 def main():
@@ -208,15 +293,17 @@ def main():
 
   print("Source file: %s" % sourceFilename)
 
-  sourceImage = SourceImage(sourceFilename)
-  state = State(sourceImage)
+  options = Options()
+
+  sourceImage = SourceImage(sourceFilename, options)
+  state = State(sourceImage, options)
 
   n = 0
   while state.hasActivePoints():
     spawnPoint = state.getRandomActivePoint()
-    newPoint = getPointNear(state, sourceImage, spawnPoint)
+    newPoint = getPointNear(state, sourceImage, spawnPoint, options)
     if newPoint:
-      if not VARY_DOT_DENSITY:
+      if not options.getVaryDotDensity():
         newPoint.computeL(sourceImage)
       state.addNewPoint(newPoint)
     else:
@@ -224,45 +311,18 @@ def main():
     n += 1
 
   print("Number of points: %d" % state.pointsCount())
-  render(sourceImage, state.getPoints())
+  render(sourceImage, state.getPoints(), options)
 
   while True:
-    renderMenu()
-    code = input("\nEnter the code in [] to select an option: ")
+    options.renderMenu()
+    code = options.prompt()
     if code.upper() == 'R':
-      render(sourceImage, state.getPoints())
+      render(sourceImage, state.getPoints(), options)
     elif code.upper() == 'Q':
       break
-    elif isInt(code) and int(code) < len(RENDER_CONSTANTS.keys()):
-      renderConstantName = list(RENDER_CONSTANTS.keys())[int(code)]
-      newVal = input("Change " + renderConstantName + " from " +
-        str(RENDER_CONSTANTS[renderConstantName]) + " to: ")
-      renderConstantType = type(RENDER_CONSTANTS[renderConstantName])
-      if renderConstantType is bool:
-        if newVal.lower() in {'true', 't'}:
-          RENDER_CONSTANTS[renderConstantName] = True
-          print(renderConstantName, "has been set to True")
-        elif newVal.lower() in {'false', 'f'}:
-          RENDER_CONSTANTS[renderConstantName] = False
-          print(renderConstantName, "has been set to False")
-        else:
-          print(renderConstantName, "must be a Boolean!")
-      elif renderConstantType is int:
-        if isInt(newVal):
-          intNewVal = int(newVal)
-          RENDER_CONSTANTS[renderConstantName] = intNewVal
-          print(renderConstantName, "has been changed to", newVal + ".")
-        else:
-          print(renderConstantName, "must be an Integer!")
     else:
-      print("Invalid code entered!")
+      options.parseInput(code)
+
 
 if __name__ == "__main__":
   main()
-
-
-
-
-
-
-

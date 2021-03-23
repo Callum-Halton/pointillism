@@ -9,6 +9,6 @@ if [ "$(whoami)" == "duncan" ]; then
   FILENAME=input/callum-1.jpg
 fi
 
-# FILENAME=cat-large.jpeg
+# FILENAME=input/cat.jpeg
 
 python3 pointillism.py ${FILENAME}

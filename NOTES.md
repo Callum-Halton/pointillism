@@ -85,6 +85,18 @@
     these folders, it forces git to track these folders. So when you pull, you
     will see these two folders appear. You should move your input images into
     the `input` folder.
+  * Ternary expressions are usually very hard to read and the ternary form
+    should be limited to very simple expressions. See how I have simplified the
+    ternary expressions in `render` and `drawDot`.
+  * I have encapsulated what were constants into an `Options` class. This
+    protects the options from being changed, keeps all the related code
+    together and out of `main`, and gets rid of having a ton of global
+    variables, which tends to make code really hard to maintain and debug. Check
+    out how simple the `main` function now it.
+  * Unfortunately, the last item was a massive refactor, and I seem to have
+    broken the program. It currently doesn't render properly. If I had had a
+    set of tests, then I would have implemented that changes step-by-step
+    running the tests after each step.
 
 [1]: https://google.github.io/styleguide/pyguide.html
 [2]: https://stackoverflow.com/a/25901060
