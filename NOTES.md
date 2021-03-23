@@ -74,8 +74,8 @@
     images), I removed them from the repo using `git rm ...`. I can provide
     copies of them if the git pull removed them for you. It's important to
     review and revise what you commit, using `git status` and `git diff`.
-  * Added `*.jpg` into the .gitignore file so that git ignores all `.jpg` files.
-    Note that `.gitignore` already included `*.jpeg`.
+  * Added `*.jpg` into the `.gitignore` file so that git ignores all `.jpg`
+    files. Note that `.gitignore` already included `*.jpeg`.
   * Added a folder called `input` to put input images into. Note that it's
     good to name folders that will be manipulated on the command line without
     spaces in them. So `input-images` is better than `input images`.
@@ -92,7 +92,7 @@
     protects the options from being changed, keeps all the related code
     together and out of `main`, and gets rid of having a ton of global
     variables, which tends to make code really hard to maintain and debug. Check
-    out how simple the `main` function now it.
+    out how simple the `main` function now is.
   * Unfortunately, the last item was a massive refactor, and I seem to have
     broken the program. It currently doesn't render properly. If I had had a
     set of tests, then I would have implemented that changes step-by-step
