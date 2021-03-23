@@ -232,7 +232,7 @@ def pointIsValid(state, sourceImage, candidatePoint, options):
             sqrDistance = ((candidatePoint.x - point.x) ** 2 +
                            (candidatePoint.y - point.y) ** 2)
             if options.getVaryDotDensity():
-              if sqrDistance < min(candidatePoint.r, point.r) ** 2:
+              if sqrDistance < max(candidatePoint.r, point.r) ** 2:
                 return False
             elif sqrDistance < options.getSqrRadius():
               return False
