@@ -4,11 +4,12 @@ from PIL import Image, ImageDraw
 class Options:
   def __init__(self):
     # Constants
-    self._maxRadius = 40 # maximum Poisson disc radius
+    self._maxRadius = 24 # maximum Poisson disc radius
     # maxRadius is the fixed exlusion radius when varyDotIntensity is False
     self._sampleLimit = 10 # number of times we'll try to find a new point
     self._varyDotDensity = True
-    self._minRadius = 20 # minimum Poisson disc radius
+    self._minRadius = 8 # minimum Poisson disc radius
+    self._useSQRSampling = False
 
     # Computed Constants
     self._sqrRadius = self._maxRadius ** 2
@@ -23,13 +24,20 @@ class Options:
 
     # Interface-Controllable Options
     self._renderConstants = {
-      'Max Draw Radius': 10,
+      'Max Draw Radius': 4,
       'Vary Dot Radius': False,
       'Vary Dot Intensity': False,
       'White Dots on Black Background': True,
-      # Best to leave this as False because it ruins the contrast
-      'Moderate Brightness': False
+      # set to 0 for no culling
+      'Minimum Difference in Intensity from Background to Show': 30
     }
+
+  def getMinLDiffTwixDotnBackgroundToShow(self):
+    return self._renderConstants[
+      'Minimum Difference in Intensity from Background to Show']
+
+  def getUseSQRSampling(self):
+    return self._useSQRSampling
 
   def getMaxRadius(self):
     return self._maxRadius
@@ -69,9 +77,6 @@ class Options:
 
   def getWhiteDotsOnBlackBackground(self):
     return self._renderConstants['White Dots on Black Background']
-
-  def getModerateBrightness(self):
-    return self._renderConstants['Moderate Brightness']
 
   def renderMenu(self):
     print("\n\nRENDER OPTIONS:\n")
@@ -131,27 +136,20 @@ class Point:
     return Point(int(self.x // cellSize), int(self.y // cellSize),
                  self._options)
 
-  def computeL(self, sourceImage):
+  def computeL(self, sourceImage, squareSample):
     totLuminosity = 0
-    pixelsSampled = 1
-    #print(self.x, self.y)
-    sx = None
-    sy = None
+    pixelsSampled = 0
     sampleRadius = self._options.getSampleRadius()
     sqrSampleRadius = self._options.getSqrSampleRadius()
     for x in range(self.x - sampleRadius, self.x + sampleRadius):
         for y in range(self.y - sampleRadius, self.y + sampleRadius):
-          sx, sy = x, y
-          if (0 <= x < sourceImage.width and 0 <= y < sourceImage.height and
-             (self.x - x) ** 2 + (self.y - y) ** 2 <= sqrSampleRadius):
+          if ((0 <= x < sourceImage.width and 0 <= y < sourceImage.height)
+              and (squareSample
+              or (self.x - x) ** 2 + (self.y - y) ** 2 <= sqrSampleRadius)):
             totLuminosity += sourceImage.pixels[x, y]
             pixelsSampled += 1
 
-    try:
-      self.l = int(totLuminosity / pixelsSampled)
-    except:
-      print(self.x, self.y)
-      print(sx, sy)
+    self.l = int(totLuminosity / pixelsSampled)
     if self._options.getVaryDotDensity():
       self.r = ((255 - self.l) / 255 * self._options.getRadiusDiff() +
                 self._options.getMinRadius())
@@ -179,7 +177,7 @@ class State:
         random.randint(maxDrawRadius, sourceImage.width - maxDrawRadius),
         random.randint(maxDrawRadius, sourceImage.height - maxDrawRadius),
         options)
-    initialPoint.computeL(sourceImage)
+    initialPoint.computeL(sourceImage, options.getUseSQRSampling())
     self._options = options
 
     self.addNewPoint(initialPoint)
@@ -213,14 +211,15 @@ class State:
 
 
 def pointIsValid(state, sourceImage, candidatePoint, options):
-  SCANPATTERN = [1, 2, 2, 2, 1]
-  cellPos = candidatePoint.getCellPos()
-  if options.getVaryDotDensity():
-    candidatePoint.computeL(sourceImage)
-
   maxDrawRadius = options.getMaxDrawRadius()
   if (maxDrawRadius <= candidatePoint.x <= sourceImage.width - maxDrawRadius and
       maxDrawRadius <= candidatePoint.y <= sourceImage.height - maxDrawRadius):
+
+    cellPos = candidatePoint.getCellPos()
+    if options.getVaryDotDensity():
+      candidatePoint.computeL(sourceImage, True)
+
+    SCANPATTERN = [1, 2, 2, 2, 1]
     for y in range(-2,3):
       extentMagForRow = SCANPATTERN[y + 2]
       for x in range(-extentMagForRow, extentMagForRow + 1):
@@ -251,18 +250,20 @@ def getPointNear(state, sourceImage, spawnPoint, options):
       return candidatePoint
   return False
 
-def drawDot(draw, point, l, backgroundIntensity, lExponenent, options):
-  dotRadius = options.getMaxDrawRadius()
-  if options.getVaryDotRadius():
-    dotRadius *= ((abs(l - backgroundIntensity) / 255)**lExponenent)
+def drawDot(draw, point, l, backgroundIntensity, options):
+  lDiffTwixDotnBackground = abs(l - backgroundIntensity)
+  if lDiffTwixDotnBackground >= options.getMinLDiffTwixDotnBackgroundToShow():
+    dotRadius = options.getMaxDrawRadius()
+    if options.getVaryDotRadius():
+      dotRadius *= lDiffTwixDotnBackground / 255
 
-  if options.getVaryDotIntensity():
-    dotIntensity = int(l ** lExponenent)
-  else:
-    dotIntensity = 255 - backgroundIntensity
+    if options.getVaryDotIntensity():
+      dotIntensity = l
+    else:
+      dotIntensity = 255 - backgroundIntensity
 
-  draw.ellipse([(point.x - dotRadius, point.y - dotRadius),
-                (point.x + dotRadius, point.y + dotRadius)], fill=dotIntensity)
+    draw.ellipse([(point.x - dotRadius, point.y - dotRadius),
+                  (point.x + dotRadius, point.y + dotRadius)], fill=dotIntensity)
 
 
 def render(sourceImage, points, options):
@@ -274,13 +275,8 @@ def render(sourceImage, points, options):
                   color=backgroundIntensity)
   draw = ImageDraw.Draw(art)
 
-  lExponenent = 1
-  if options.getModerateBrightness():
-    lExponenent /= (options.getVaryDotIntensity() * 1 +
-                    options.getVaryDotRadius() * 2)
-
   for point in points:
-    drawDot(draw, point, point.l, backgroundIntensity, lExponenent, options)
+    drawDot(draw, point, point.l, backgroundIntensity, options)
 
   art.save("output/art.png")
   art.show()
@@ -303,8 +299,8 @@ def main():
     spawnPoint = state.getRandomActivePoint()
     newPoint = getPointNear(state, sourceImage, spawnPoint, options)
     if newPoint:
-      if not options.getVaryDotDensity():
-        newPoint.computeL(sourceImage)
+      if not (options.getVaryDotDensity() and options.getUseSQRSampling()):
+        newPoint.computeL(sourceImage, options.getUseSQRSampling())
       state.addNewPoint(newPoint)
     else:
       state.removeActivePoint(spawnPoint)
@@ -326,3 +322,18 @@ def main():
 
 if __name__ == "__main__":
   main()
+
+'''
+GRAVEYARD OF BAD CODE:
+=====================
+
+# Best to leave this as False because it ruins the contrast
+'Moderate Brightness': False
+
+def getModerateBrightness(self):
+  return self._renderConstants['Moderate Brightness']
+
+lExponenent = 1
+if options.getModerateBrightness():
+  lExponenent /= (options.getVaryDotIntensity() * 1 +
+                  options.getVaryDotRadius() * 2)
