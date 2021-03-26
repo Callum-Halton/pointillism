@@ -1,14 +1,14 @@
-import math, random, sys
+import math, random, sys, copy
 from PIL import Image, ImageDraw
 
 class Options:
   def __init__(self):
     # Constants
-    self._maxRadius = 24 # maximum Poisson disc radius
+    self._maxRadius = 30 # maximum Poisson disc radius
     # maxRadius is the fixed exlusion radius when varyDotIntensity is False
-    self._sampleLimit = 10 # number of times we'll try to find a new point
+    self._sampleLimit = 20 # number of times we'll try to find a new point
     self._varyDotDensity = True
-    self._minRadius = 8 # minimum Poisson disc radius
+    self._minRadius = 9 # minimum Poisson disc radius
     self._useSQRSampling = False
 
     # Computed Constants
@@ -18,23 +18,41 @@ class Options:
     else:
       self._sampleRadius = int(self._maxRadius / 2)
     self._sqrSampleRadius = self._sampleRadius ** 2
-    self._cellSize = self._maxRadius / math.sqrt(2) # Should this be an integer?
+    self._cellSize = int(self._maxRadius / math.sqrt(2))
     if self._varyDotDensity:
       self._radiusDiff = self._maxRadius - self._minRadius
 
     # Interface-Controllable Options
     self._renderConstants = {
-      'Max Draw Radius': 4,
-      'Vary Dot Radius': False,
+      'Max Draw Radius': 5,
+      'Vary Dot Radius': True,
       'Vary Dot Intensity': False,
-      'White Dots on Black Background': True,
+      'White Dots on Black Background': False,
       # set to 0 for no culling
-      'Minimum Difference in Intensity from Background to Show': 30
+      # only used if 'Draw Specific Number of Dots' is False.
+      'Minimum Difference in Intensity from Background to Draw': 7,
+      'Draw Specific Number of Dots': True,
+      'Total Number of Dots to Draw': 10000
     }
+
+    # should NOT be used in render stage!!!
+    if self._renderConstants['White Dots on Black Background']:
+      self._stdDotIntensityForSampling = 255
+    else:
+      self._stdDotIntensityForSampling = 0
+
+  def getStdDotIntensityForSampling(self):
+    return self._stdDotIntensityForSampling
+
+  def getDrawSpecificNumOfDots(self):
+    return self._renderConstants['Draw Specific Number of Dots']
+
+  def getTotDotsToDraw(self):
+    return self._renderConstants['Total Number of Dots to Draw']
 
   def getMinLDiffTwixDotnBackgroundToShow(self):
     return self._renderConstants[
-      'Minimum Difference in Intensity from Background to Show']
+      'Minimum Difference in Intensity from Background to Draw']
 
   def getUseSQRSampling(self):
     return self._useSQRSampling
@@ -84,7 +102,7 @@ class Options:
     for key, value in self._renderConstants.items():
       print("[%i] Change: %s (currently %r)" % (index, key, value))
       index += 1
-    print("[R] Rerender!")
+    print("\n[R] Rerender!")
     print("[Q] Quit")
 
   def prompt(self):
@@ -151,8 +169,9 @@ class Point:
 
     self.l = int(totLuminosity / pixelsSampled)
     if self._options.getVaryDotDensity():
-      self.r = ((255 - self.l) / 255 * self._options.getRadiusDiff() +
-                self._options.getMinRadius())
+      self.r = (self._options.getMinRadius()
+        + int(abs(self._options.getStdDotIntensityForSampling() - self.l) / 255
+        * self._options.getRadiusDiff()))
 
 
 class SourceImage:
@@ -168,6 +187,7 @@ class SourceImage:
 class State:
   def __init__(self, sourceImage, options):
     self._points = []
+    self._orderedPoints = None
     self._activePoints = []
     self._activePointsCount = 0
     self._cells = [[[] for x in range(sourceImage.widthInCells)]
@@ -178,7 +198,6 @@ class State:
         random.randint(maxDrawRadius, sourceImage.height - maxDrawRadius),
         options)
     initialPoint.computeL(sourceImage, options.getUseSQRSampling())
-    self._options = options
 
     self.addNewPoint(initialPoint)
 
@@ -207,7 +226,31 @@ class State:
     return len(self._points)
 
   def getPoints(self):
-    return self._points.copy() # return a copy to protect the hidden state
+    return copy.deepcopy(self._points) # return a copy to protect the hidden state
+
+  def pickNPoints(self, n, pickFromTop):
+    if self._orderedPoints is None:
+      self._orderedPoints = [[] for i in range(256)]
+      for point in self.getPoints():
+        self._orderedPoints[point.l].append(point)
+
+    processedOrderedPoints = copy.deepcopy(self._orderedPoints)
+    if pickFromTop:
+      processedOrderedPoints = reversed(processedOrderedPoints)
+
+    pickedPoints = []
+    for lBucket in processedOrderedPoints:
+      while lBucket:
+        if len(pickedPoints) == n:
+          return(pickedPoints)
+        else:
+          pickedPoint = random.choice(lBucket)
+          pickedPoints.append(pickedPoint)
+          lBucket.remove(pickedPoint)
+
+    print("The number of dots you want to draw is larger than the number of" +
+      " points sampled.\nTo sample more points, decrease the maxRadius.")
+    return pickedPoints
 
 
 def pointIsValid(state, sourceImage, candidatePoint, options):
@@ -250,40 +293,57 @@ def getPointNear(state, sourceImage, spawnPoint, options):
       return candidatePoint
   return False
 
-def drawDot(draw, point, l, backgroundIntensity, options):
-  lDiffTwixDotnBackground = abs(l - backgroundIntensity)
-  if lDiffTwixDotnBackground >= options.getMinLDiffTwixDotnBackgroundToShow():
+def drawDot(draw, point, backgroundIntensity, options):
+  lDiffTwixDotnBackground = abs(point.l - backgroundIntensity)
+  if (options.getDrawSpecificNumOfDots() or
+      lDiffTwixDotnBackground >= options.getMinLDiffTwixDotnBackgroundToShow()):
+
     dotRadius = options.getMaxDrawRadius()
     if options.getVaryDotRadius():
       dotRadius *= lDiffTwixDotnBackground / 255
+      if dotRadius < 0.5:
+        dotRadius = 0.5
 
     if options.getVaryDotIntensity():
-      dotIntensity = l
+      dotIntensity = point.l
     else:
       dotIntensity = 255 - backgroundIntensity
 
     draw.ellipse([(point.x - dotRadius, point.y - dotRadius),
-                  (point.x + dotRadius, point.y + dotRadius)], fill=dotIntensity)
+                  (point.x + dotRadius, point.y + dotRadius)],
+                  fill=dotIntensity)
+    return True
+  return False
 
 
-def render(sourceImage, points, options):
-  backgroundIntensity = 255
+def render(sourceImage, state, options):
   if options.getWhiteDotsOnBlackBackground():
     backgroundIntensity = 0
+  else:
+    backgroundIntensity = 255
 
   art = Image.new('L', (sourceImage.width, sourceImage.height),
                   color=backgroundIntensity)
   draw = ImageDraw.Draw(art)
 
-  for point in points:
-    drawDot(draw, point, point.l, backgroundIntensity, options)
+  if options.getDrawSpecificNumOfDots():
+    pointsToRender = state.pickNPoints(
+      options.getTotDotsToDraw(),
+      options.getWhiteDotsOnBlackBackground())
+  else:
+    pointsToRender = state.getPoints()
 
+  dotsRendered = 0
+  for point in pointsToRender:
+    dotsRendered += drawDot(draw, point, backgroundIntensity, options)
+
+  print("Number of dots rendered: %d" % dotsRendered)
   art.save("output/art.png")
   art.show()
 
 
 def main():
-  sourceFilename = "input/portrait.jpg"
+  sourceFilename = "input/blueSkyTest.png"
   if len(sys.argv) > 1:
     sourceFilename = sys.argv[1]
 
@@ -306,14 +366,14 @@ def main():
       state.removeActivePoint(spawnPoint)
     n += 1
 
-  print("Number of points: %d" % state.pointsCount())
-  render(sourceImage, state.getPoints(), options)
+  print("Number of points sampled: %d" % state.pointsCount())
+  render(sourceImage, state, options)
 
   while True:
     options.renderMenu()
     code = options.prompt()
     if code.upper() == 'R':
-      render(sourceImage, state.getPoints(), options)
+      render(sourceImage, state, options)
     elif code.upper() == 'Q':
       break
     else:
@@ -337,3 +397,4 @@ lExponenent = 1
 if options.getModerateBrightness():
   lExponenent /= (options.getVaryDotIntensity() * 1 +
                   options.getVaryDotRadius() * 2)
+'''
