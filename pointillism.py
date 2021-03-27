@@ -192,13 +192,13 @@ class State:
     self._activePointsCount = 0
     self._cells = [[[] for x in range(sourceImage.widthInCells)]
                    for y in range(sourceImage.heightInCells)]
+
     maxDrawRadius = options.getMaxDrawRadius()
     initialPoint = Point(
         random.randint(maxDrawRadius, sourceImage.width - maxDrawRadius),
         random.randint(maxDrawRadius, sourceImage.height - maxDrawRadius),
         options)
     initialPoint.computeL(sourceImage, options.getUseSQRSampling())
-
     self.addNewPoint(initialPoint)
 
   def addNewPoint(self, point):
@@ -282,6 +282,7 @@ def pointIsValid(state, sourceImage, candidatePoint, options):
   return False
 
 
+# Problably move to state class
 def getPointNear(state, sourceImage, spawnPoint, options):
   for i in range(options.getSampleLimit()):
     angle = random.uniform(0, 2 * math.pi)
@@ -293,6 +294,7 @@ def getPointNear(state, sourceImage, spawnPoint, options):
       return candidatePoint
   return False
 
+# Probably move to point class
 def drawDot(draw, point, backgroundIntensity, options):
   lDiffTwixDotnBackground = abs(point.l - backgroundIntensity)
   if (options.getDrawSpecificNumOfDots() or
@@ -316,6 +318,7 @@ def drawDot(draw, point, backgroundIntensity, options):
   return False
 
 
+# For now leave as a function
 def render(sourceImage, state, options):
   if options.getWhiteDotsOnBlackBackground():
     backgroundIntensity = 0
