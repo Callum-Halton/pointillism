@@ -4,11 +4,11 @@ from PIL import Image, ImageDraw
 class Options:
   def __init__(self):
     # Constants
-    self._maxRadius = 30 # maximum Poisson disc radius
+    self._maxRadius = 20 # maximum Poisson disc radius
     # maxRadius is the fixed exlusion radius when varyDotIntensity is False
     self._sampleLimit = 20 # number of times we'll try to find a new point
-    self._varyDotDensity = True
-    self._minRadius = 9 # minimum Poisson disc radius
+    self._varyDotDensity = False
+    self._minRadius = 5 # minimum Poisson disc radius
     self._useSQRSampling = False
 
     # Computed Constants
@@ -24,14 +24,15 @@ class Options:
 
     # Interface-Controllable Options
     self._renderConstants = {
-      'Max Draw Radius': 5,
+      'Max Draw Diameter': 6,
+      'Min Draw Diameter': 1,
       'Vary Dot Radius': True,
       'Vary Dot Intensity': False,
-      'White Dots on Black Background': False,
+      'White Dots on Black Background': True,
       # set to 0 for no culling
       # only used if 'Draw Specific Number of Dots' is False.
-      'Minimum Difference in Intensity from Background to Draw': 7,
-      'Draw Specific Number of Dots': True,
+      'Minimum Difference in Intensity from Background to Draw': 0,
+      'Draw Specific Number of Dots': False,
       'Total Number of Dots to Draw': 10000
     }
 
@@ -85,7 +86,10 @@ class Options:
     return self._radiusDiff
 
   def getMaxDrawRadius(self):
-    return self._renderConstants['Max Draw Radius']
+    return self._renderConstants['Max Draw Diameter'] / 2
+
+  def getMinDrawRadius(self):
+    return self._renderConstants['Min Draw Diameter'] / 2
 
   def getVaryDotRadius(self):
     return self._renderConstants['Vary Dot Radius']
@@ -304,9 +308,8 @@ def drawDot(draw, point, backgroundIntensity, options):
 
     dotRadius = options.getMaxDrawRadius()
     if options.getVaryDotRadius():
-      dotRadius *= lDiffTwixDotnBackground / 255
-      if dotRadius < 0.5:
-        dotRadius = 0.5
+      dotRadius *= (lDiffTwixDotnBackground * dotRadius / 255
+        + options.getMinDrawRadius())
 
     if options.getVaryDotIntensity():
       dotIntensity = point.l
@@ -348,7 +351,7 @@ def render(sourceImage, state, options):
 
 
 def main():
-  sourceFilename = "input/blueSkyTest.png"
+  sourceFilename = "input/cat.png"
   if len(sys.argv) > 1:
     sourceFilename = sys.argv[1]
 
@@ -402,4 +405,6 @@ lExponenent = 1
 if options.getModerateBrightness():
   lExponenent /= (options.getVaryDotIntensity() * 1 +
                   options.getVaryDotRadius() * 2)
+
+
 '''
