@@ -4,11 +4,11 @@ from PIL import Image, ImageDraw
 class Options:
   def __init__(self):
     # Constants
-    self._maxRadius = 20 # maximum Poisson disc radius
+    self._maxRadius = 12 # maximum Poisson disc radius
     # maxRadius is the fixed exlusion radius when varyDotIntensity is False
-    self._sampleLimit = 20 # number of times we'll try to find a new point
-    self._varyDotDensity = False
-    self._minRadius = 5 # minimum Poisson disc radius
+    self._sampleLimit = 30 # number of times we'll try to find a new point
+    self._varyDotDensity = True
+    self._minRadius = 6 # minimum Poisson disc radius
     self._useSQRSampling = False
 
     # Computed Constants
@@ -25,15 +25,15 @@ class Options:
     # Interface-Controllable Options
     self._renderConstants = {
       'Max Draw Diameter': 6,
-      'Min Draw Diameter': 1,
+      'Min Draw Diameter': 2,
       'Vary Dot Radius': True,
-      'Vary Dot Intensity': False,
+      'Vary Dot Intensity': True,
       'White Dots on Black Background': True,
       # set to 0 for no culling
       # only used if 'Draw Specific Number of Dots' is False.
       'Minimum Difference in Intensity from Background to Draw': 0,
       'Draw Specific Number of Dots': False,
-      'Total Number of Dots to Draw': 10000
+      'Total Number of Dots to Draw': 0
     }
 
     # should NOT be used in render stage!!!
@@ -51,7 +51,7 @@ class Options:
   def getTotDotsToDraw(self):
     return self._renderConstants['Total Number of Dots to Draw']
 
-  def getMinLDiffTwixDotnBackgroundToShow(self):
+  def getMinLDiffTwixDotnBackgroundToDraw(self):
     return self._renderConstants[
       'Minimum Difference in Intensity from Background to Draw']
 
@@ -197,7 +197,7 @@ class State:
     self._cells = [[[] for x in range(sourceImage.widthInCells)]
                    for y in range(sourceImage.heightInCells)]
 
-    maxDrawRadius = options.getMaxDrawRadius()
+    maxDrawRadius = math.ceil(options.getMaxDrawRadius())
 
     initialPoint = Point(
         random.randint(maxDrawRadius, sourceImage.width - maxDrawRadius),
@@ -231,7 +231,7 @@ class State:
     return len(self._points)
 
   def getPoints(self):
-    return copy.deepcopy(self._points) # return a copy to protect the hidden state
+    return copy.deepcopy(self._points) # return a copy to protect hidden state
 
   def pickNPoints(self, n, pickFromTop):
     if self._orderedPoints is None:
@@ -301,15 +301,19 @@ def getPointNear(state, sourceImage, spawnPoint, options):
 
 
 # Probably move to point class
+# Condense constans in render!!!!
 def drawDot(draw, point, backgroundIntensity, options):
   lDiffTwixDotnBackground = abs(point.l - backgroundIntensity)
   if (options.getDrawSpecificNumOfDots() or
-      lDiffTwixDotnBackground >= options.getMinLDiffTwixDotnBackgroundToShow()):
+      lDiffTwixDotnBackground >= options.getMinLDiffTwixDotnBackgroundToDraw()):
 
-    dotRadius = options.getMaxDrawRadius()
+    # This first dot radius assignment can be thoroughly optimized by condensing
+    # constants in render
     if options.getVaryDotRadius():
-      dotRadius *= (lDiffTwixDotnBackground * dotRadius / 255
-        + options.getMinDrawRadius())
+      dotRadius = ((options.getMaxDrawRadius() - options.getMinDrawRadius())
+       * lDiffTwixDotnBackground / 255 + options.getMinDrawRadius())
+    else:
+      dotRadius = options.getMaxDrawRadius()
 
     if options.getVaryDotIntensity():
       dotIntensity = point.l
@@ -317,7 +321,7 @@ def drawDot(draw, point, backgroundIntensity, options):
       dotIntensity = 255 - backgroundIntensity
 
     draw.ellipse([(point.x - dotRadius, point.y - dotRadius),
-                  (point.x + dotRadius, point.y + dotRadius)],
+                  (point.x + dotRadius - 1, point.y + dotRadius - 1)],
                   fill=dotIntensity)
     return True
   return False
@@ -351,7 +355,7 @@ def render(sourceImage, state, options):
 
 
 def main():
-  sourceFilename = "input/cat.png"
+  sourceFilename = "input/smile.png"
   if len(sys.argv) > 1:
     sourceFilename = sys.argv[1]
 
